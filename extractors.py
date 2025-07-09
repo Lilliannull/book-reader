@@ -1,6 +1,6 @@
 import os
 import fitz  # PyMuPDF
-from ebooklib import epub
+from ebooklib import epub, ITEM_DOCUMENT
 from bs4 import BeautifulSoup
 
 def extract_pdf_text(path):
@@ -15,10 +15,10 @@ def extract_epub_text(path):
     book = epub.read_epub(path)
     text = ''
     for item in book.get_items():
-        if item.get_type() == epub.EpubHtml:
+        if item.get_type() == ITEM_DOCUMENT:
             soup = BeautifulSoup(item.get_content(), 'html.parser')
             text += soup.get_text()
-    return text
+    return text.strip()
 
 def extract_text_by_extension(path):
     ext = os.path.splitext(path)[1].lower()
