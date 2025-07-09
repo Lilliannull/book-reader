@@ -2,4 +2,7 @@
 venv/
 __pycache__/
 *.pyc
-
+*.pdf
+uploads/
+*.epub
+*.txt

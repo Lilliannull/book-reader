@@ -22,10 +22,26 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
         shutil.copyfileobj(file.file, buffer)
 
     extracted = extract_text_by_extension(file_path)
+
     return HTMLResponse(f"""
-        <h2>Extracted Content from {file.filename}</h2>
-        <div style='white-space: pre-wrap; max-width: 800px; margin: auto; font-family: sans-serif;'>
-            {extracted}
-        </div>
-        <br><a href='/'>⬅ Back</a>
+    <html>
+    <head>
+        <title>{file.filename}</title>
+        <script>
+            function readAloud() {{
+                const text = document.getElementById("book-content").innerText.slice(0, 1000);
+                const utter = new SpeechSynthesisUtterance(text);
+                utter.lang = "en-US";
+                speechSynthesis.cancel();
+                speechSynthesis.speak(utter);
+            }}
+        </script>
+    </head>
+    <body>
+        <h2>{file.filename}</h2>
+        <button onclick="readAloud()">🔈 Read Aloud</button>
+        <pre id="book-content">{extracted}</pre>
+        <br><a href="/">⬅ Back</a>
+    </body>
+    </html>
     """)
