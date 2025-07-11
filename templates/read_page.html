@@ -49,9 +49,10 @@
     <div id="book-content">
         {% for en in paragraphs %}
         <div id="para-{{ loop.index }}" style="margin-bottom: 20px;">
-            <p><strong>📘 第 {{ loop.index }} 段：</strong><br>▶️ {{ en }}</p>
+            <p><strong>{{ loop.index }}</strong><br>{{ en }}</p>
             <p id="zh-{{ loop.index }}" style="display: none; color: gray;"></p>
-            <button onclick="translateOne({{ loop.index }}, '{{ en | replace("'", "\\'") }}')" id="btn-{{ loop.index }}">🌐 翻译</button>
+            <button onclick="translateOne({{ loop.index }}, '{{ en | replace("\\", "\\\\") | replace("'", "\\'") | replace('\n', ' ') }}')"id="btn-{{ loop.index }}">🌐 翻译</button>
+
             <hr>
         </div>
         {% endfor %}
@@ -134,55 +135,51 @@
 
         async function translateBatch() {
             const btn = document.getElementById("batch-btn");
-            btn.innerText = "⏳ 正在查找当前位置...";
+            btn.innerText = "⏳ 正在查找未翻译段落...";
             btn.disabled = true;
 
             const allParas = document.querySelectorAll("div[id^='para-']");
             const viewportTop = window.scrollY;
-            let startIndex = 1;
+            const batchSize = 50;
+            let translatedCount = 0;
 
             for (let i = 0; i < allParas.length; i++) {
-                const rect = allParas[i].getBoundingClientRect();
+                const para = allParas[i];
+                const index = parseInt(para.id.replace("para-", ""));
+                const zhElem = document.getElementById("zh-" + index);
+                const btnElem = document.getElementById("btn-" + index);
+                const rect = para.getBoundingClientRect();
                 const absTop = rect.top + window.scrollY;
-                if (absTop >= viewportTop) {
-                    startIndex = i + 1;
-                    break;
+
+                if (absTop >= viewportTop && zhElem.innerText.trim() === "") {
+                    // 执行翻译
+                    const enText = btnElem.getAttribute("onclick")
+                        .match(/translateOne\(\d+, '(.*)'\)/)[1]
+                        .replace(/\\'/g, "'");
+
+                    btnElem.innerText = "⏳ 翻译中...";
+                    btnElem.disabled = true;
+
+                    const res = await fetch("/translate", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ text: enText })
+                    });
+
+                    const data = await res.json();
+                    zhElem.innerText = data.translation;
+                    zhElem.style.display = "block";
+                    btnElem.innerText = "✅ 已翻译";
+
+                    translatedCount++;
                 }
+
+                if (translatedCount >= batchSize) break;
             }
 
-            const batchSize = 50;
-            const total = allParas.length;
-
-            btn.innerText = `⏳ 正在翻译第 ${startIndex} ~ ${Math.min(startIndex + batchSize - 1, total)} 段...`;
-
-            for (let i = startIndex; i < startIndex + batchSize && i <= total; i++) {
-                const zhElem = document.getElementById("zh-" + i);
-                const btnElem = document.getElementById("btn-" + i);
-                if (!btnElem || !zhElem) continue;
-
-                if (zhElem.innerText.trim() !== "") continue;
-
-                const enText = btnElem.getAttribute("onclick")
-                    .match(/translateOne\(\d+, '(.*)'\)/)[1]
-                    .replace(/\\'/g, "'");
-
-                btnElem.innerText = "⏳ 翻译中...";
-                btnElem.disabled = true;
-
-                const res = await fetch("/translate", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ text: enText })
-                });
-
-                const data = await res.json();
-                zhElem.innerText = data.translation;
-                zhElem.style.display = "block";
-                btnElem.innerText = "✅ 已翻译";
-            }
-
+            // 检查是否还有未翻译段落
             let hasUntranslated = false;
-            for (let i = 1; i <= total; i++) {
+            for (let i = 1; i <= allParas.length; i++) {
                 const zh = document.getElementById("zh-" + i);
                 if (zh && zh.innerText.trim() === "") {
                     hasUntranslated = true;
@@ -197,8 +194,8 @@
                 btn.innerText = `🌍 翻译下一批 (${batchSize}段)`;
                 btn.disabled = false;
             }
-
         }
+
 
 
         // 自动记录滚动位置（每次滚动时）
