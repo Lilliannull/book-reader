@@ -16,6 +16,28 @@ templates = Jinja2Templates(directory="templates")
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+def split_paragraphs(text, max_len=5000):
+    raw_paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
+    final_paragraphs = []
+
+    for para in raw_paragraphs:
+        if len(para) <= max_len:
+            final_paragraphs.append(para)
+        else:
+            # Try splitting into sentences first
+            sentences = re.split(r'(?<=[.?!。！？])\s+', para)
+            chunk = ""
+            for sentence in sentences:
+                if len(chunk) + len(sentence) <= max_len:
+                    chunk += sentence + " "
+                else:
+                    final_paragraphs.append(chunk.strip())
+                    chunk = sentence + " "
+            if chunk:
+                final_paragraphs.append(chunk.strip())
+    return final_paragraphs
+
+
 @app.get("/", response_class=HTMLResponse)
 def form_page(request: Request):
     return templates.TemplateResponse("upload_form.html", {"request": request})
@@ -28,7 +50,7 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
         shutil.copyfileobj(file.file, buffer)
 
     extracted = extract_text_by_extension(file_path)
-    paragraphs = [p.strip() for p in extracted.split('\n\n') if p.strip()]
+    paragraphs = split_paragraphs(extracted)
 
     return templates.TemplateResponse("read_page.html", {
         "request": request,
