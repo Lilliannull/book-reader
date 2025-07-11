@@ -49,7 +49,7 @@
     <div id="book-content">
         {% for en in paragraphs %}
         <div id="para-{{ loop.index }}" style="margin-bottom: 20px;">
-            <p><strong>{{ loop.index }}</strong><br>{{ en }}</p>
+            <p class="en-paragraph"><strong>{{ loop.index }}：</strong><br>{{ en }}</p>
             <p id="zh-{{ loop.index }}" style="display: none; color: gray;"></p>
             <button onclick="translateOne({{ loop.index }}, '{{ en | replace("\\", "\\\\") | replace("'", "\\'") | replace('\n', ' ') }}')"id="btn-{{ loop.index }}">🌐 翻译</button>
 
@@ -68,11 +68,19 @@
 
         function initUtterance() {
             if (!utterance) {
-                const text = document.getElementById("book-content").innerText.slice(0, 1000);
+                const paras = document.querySelectorAll(".en-paragraph");
+                let text = "";
+                for (let p of paras) {
+                    const fullText = p.innerText.trim();
+                    const contentOnly = fullText.replace(/^\d+[:：]?\s*/, '');  // 去掉前面的数字加冒号
+                    text += contentOnly + "\n";
+                }
+
+                text = text.slice(0, 1000);  // 只读前1000字
                 utterance = new SpeechSynthesisUtterance(text);
                 utterance.lang = "en-US";
 
-                utterance.onend = function() {
+                utterance.onend = function () {
                     isStarted = false;
                     isPaused = false;
                     utterance = null;
@@ -80,6 +88,7 @@
                 };
             }
         }
+
 
         function startReading() {
             speechSynthesis.cancel(); // 确保不会重叠
