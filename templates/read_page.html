@@ -19,6 +19,20 @@
             padding: 15px;
             border-radius: 8px;
         }
+        #batch-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            padding: 10px 16px;
+            background-color: #1d72b8;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
     </style>
 </head>
 <body>
@@ -29,8 +43,20 @@
     <button onclick="pauseReading()">⏸️ Pause</button>
     <button onclick="resumeReading()">⏯️ Resume</button>
     <button onclick="stopReading()">⏹️ Stop</button>
+    <button type="button" onclick="translateBatch()" id="batch-btn">🌍 翻译下一批 (50段)</button>
 
-    <pre id="book-content">{{ content }}</pre>
+
+    <div id="book-content">
+        {% for en in paragraphs %}
+        <div id="para-{{ loop.index }}" style="margin-bottom: 20px;">
+            <p><strong>📘 第 {{ loop.index }} 段：</strong><br>▶️ {{ en }}</p>
+            <p id="zh-{{ loop.index }}" style="display: none; color: gray;"></p>
+            <button onclick="translateOne({{ loop.index }}, '{{ en | replace("'", "\\'") }}')" id="btn-{{ loop.index }}">🌐 翻译</button>
+            <hr>
+        </div>
+        {% endfor %}
+    </div>
+
 
     <br><br><a href="/">⬅ Back</a>
 
@@ -82,6 +108,113 @@
             isStarted = false;
             utterance = null;
         }
+
+        async function translateOne(index, enText) {
+            const zhElem = document.getElementById("zh-" + index);
+            const btn = document.getElementById("btn-" + index);
+
+            btn.innerText = "⏳ 翻译中...";
+            btn.disabled = true;
+
+            const response = await fetch("/translate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text: enText })
+            });
+
+            const data = await response.json();
+            zhElem.innerText = data.translation;
+            zhElem.style.display = "block";
+            btn.innerText = "✅ 已翻译";
+        }
+
+        let currentIndex = 1;
+        const batchSize = 50;
+        const totalParagraphs = {{ paragraphs|length }};
+
+        async function translateBatch() {
+            const btn = document.getElementById("batch-btn");
+            btn.innerText = "⏳ 正在查找当前位置...";
+            btn.disabled = true;
+
+            const allParas = document.querySelectorAll("div[id^='para-']");
+            const viewportTop = window.scrollY;
+            let startIndex = 1;
+
+            for (let i = 0; i < allParas.length; i++) {
+                const rect = allParas[i].getBoundingClientRect();
+                const absTop = rect.top + window.scrollY;
+                if (absTop >= viewportTop) {
+                    startIndex = i + 1;
+                    break;
+                }
+            }
+
+            const batchSize = 50;
+            const total = allParas.length;
+
+            btn.innerText = `⏳ 正在翻译第 ${startIndex} ~ ${Math.min(startIndex + batchSize - 1, total)} 段...`;
+
+            for (let i = startIndex; i < startIndex + batchSize && i <= total; i++) {
+                const zhElem = document.getElementById("zh-" + i);
+                const btnElem = document.getElementById("btn-" + i);
+                if (!btnElem || !zhElem) continue;
+
+                if (zhElem.innerText.trim() !== "") continue;
+
+                const enText = btnElem.getAttribute("onclick")
+                    .match(/translateOne\(\d+, '(.*)'\)/)[1]
+                    .replace(/\\'/g, "'");
+
+                btnElem.innerText = "⏳ 翻译中...";
+                btnElem.disabled = true;
+
+                const res = await fetch("/translate", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ text: enText })
+                });
+
+                const data = await res.json();
+                zhElem.innerText = data.translation;
+                zhElem.style.display = "block";
+                btnElem.innerText = "✅ 已翻译";
+            }
+
+            let hasUntranslated = false;
+            for (let i = 1; i <= total; i++) {
+                const zh = document.getElementById("zh-" + i);
+                if (zh && zh.innerText.trim() === "") {
+                    hasUntranslated = true;
+                    break;
+                }
+            }
+
+            if (!hasUntranslated) {
+                btn.innerText = "✅ 所有段落已翻译";
+                btn.disabled = true;
+            } else {
+                btn.innerText = `🌍 翻译下一批 (${batchSize}段)`;
+                btn.disabled = false;
+            }
+
+        }
+
+
+        // 自动记录滚动位置（每次滚动时）
+        window.addEventListener("scroll", () => {
+            localStorage.setItem("book-scroll-position", window.scrollY);
+        });
+
+        // 页面加载完后自动恢复滚动位置
+        window.addEventListener("load", () => {
+            const savedY = localStorage.getItem("book-scroll-position");
+            if (savedY !== null) {
+                window.scrollTo({ top: parseInt(savedY), behavior: "smooth" });
+            }
+        });
+
+
     </script>
 
 </body>
